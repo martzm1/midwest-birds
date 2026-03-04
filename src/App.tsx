@@ -208,8 +208,21 @@ function App() {
 
   // Run once on load
   useEffect(() => {
-    generateQuestion();
-  }, []);
+  const randomBird = birds[Math.floor(Math.random() * birds.length)];
+
+  const wrong = birds
+    .filter(b => b.name !== randomBird.name)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3);
+
+  const allChoices = [...wrong, randomBird]
+    .sort(() => Math.random() - 0.5);
+
+  setQuestion({
+    bird: randomBird,
+    choices: allChoices
+  });
+}, []);
   
   useEffect(() => {
   if (scorePop) {
