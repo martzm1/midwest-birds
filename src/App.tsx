@@ -8,6 +8,11 @@ type Bird = {
   fact: string;
 };
 
+type Question = {
+  bird: Bird;
+  choices: Bird[];
+};
+
 const birds: Bird[] = [
   {
     name: "Northern Cardinal",
@@ -77,7 +82,7 @@ const birds: Bird[] = [
   },
   {
     name: "Eastern Towhee",
-    image: "https://lh5.googleusercontent.com/proxy/IygbS6LQSLIRGaYQkImcWhVSZsFZnsVn8FK3VdQIgHU1xTh_c1sLlKck3-wXMpCO4NhdeqHBrZl1zbdCJ4N4TTM",
+    image: "https://abcbirds.org/wp-content/uploads/2025/03/BOTW-featured-image_Eastern-Towhee_Brad-Imhoff-Macaulay-Library-at-the-Cornell-Lab-of-Ornithology-1024x683.webp",
     audio: "/sounds/eastern_towhee.mp3",
     fact: "Known for its 'drink-your-tea!' song; males have black upper parts, females brown."
   },
@@ -162,243 +167,188 @@ const birds: Bird[] = [
 ];
 
 function App() {
-  const [currentBird, setCurrentBird] = useState<Bird | null>(null);
-  const [choices, setChoices] = useState<string[]>([]);
+  const [question, setQuestion] = useState<Question | null>(null);
+  const [answered, setAnswered] = useState(false);
   const [message, setMessage] = useState("");
   const [score, setScore] = useState(0);
-  const [answered, setAnswered] = useState(false);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
-  const [previousBird, setPreviousBird] = useState<Bird | null>(null);
   const [streak, setStreak] = useState(0);
-  const [showReveal, setShowReveal] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(0); // seconds
-  const [audioDuration, setAudioDuration] = useState(0); // seconds
-  const [bgColor, setBgColor] = useState<string>("white");
-  const [streakPop, setStreakPop] = useState(false);
+  const [bgColor, setBgColor] = useState("white");
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const [scorePop, setScorePop] = useState(false);
 
-  // first question generation
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Generate new question
+  const generateQuestion = () => {
+    setBgColor("white");
+    setAnswered(false);
+    setMessage("");
+
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      setAudio(null);
+    }
+
+    // Pick random bird
+    const randomBird = birds[Math.floor(Math.random() * birds.length)];
+
+    // Pick 3 random wrong birds
+    const wrong = birds
+      .filter(b => b.name !== randomBird.name)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+
+    const allChoices = [...wrong, randomBird]
+      .sort(() => Math.random() - 0.5);
+
+    setQuestion({
+      bird: randomBird,
+      choices: allChoices
+    });
+  };
+
+  // Run once on load
   useEffect(() => {
     generateQuestion();
   }, []);
-
-  // streak pop animation reset
-  useEffect(() => {
-    if (streakPop) {
-      const timer = setTimeout(() => setStreakPop(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [streakPop]);
-
-  useEffect(() => {
-    if (scorePop) {
-      const timer = setTimeout(() => setScorePop(false), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [scorePop]);
-
- 
-  const generateQuestion = () => {
-  setBgColor("white"); // reset background
-  setShowReveal(false);
-  // Stop current audio if any
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-    setCurrentAudio(null);
-  }
-
-  // Pick a random bird that is NOT the previous one
-  const availableBirds = previousBird
-    ? birds.filter((b) => b.name !== previousBird.name)
-    : birds;
-
-  const randomBird = availableBirds[Math.floor(Math.random() * availableBirds.length)];
-  setCurrentBird(randomBird);
-  setPreviousBird(randomBird); // save for next round
-
-  // Generate 4 answer choices
-  const shuffledChoices = [...birds]
-    .sort(() => 0.5 - Math.random())
-    .slice(0, 4)
-    .map((b) => b.name);
-
-  // Ensure the correct bird is included
-  if (!shuffledChoices.includes(randomBird.name)) {
-    shuffledChoices[0] = randomBird.name;
-  }
-
-  setChoices(shuffledChoices.sort(() => 0.5 - Math.random()));
-  setAnswered(false);
-  setMessage("");
-};
-
-  const playSound = (audioPath: string) => {
-  if (!audioPath) {
-    console.warn("No audio file for this bird yet");
-    return;
-  }
-
-  // Stop previous audio
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
-  }
-
-  const audio = new Audio(audioPath);
-  setCurrentAudio(audio);
-
-  // Set duration once metadata is loaded
-  audio.addEventListener("loadedmetadata", () => {
-    setAudioDuration(audio.duration);
-  });
-
-  // Update progress every 100ms
-  audio.addEventListener("timeupdate", () => {
-    setAudioProgress(audio.currentTime);
-  });
-
-  // Reset progress when audio ends
-  audio.addEventListener("ended", () => {
-    setAudioProgress(0);
-  });
-
-  audio.play();
-};
-
-  const checkAnswer = (choice: string) => {
-  if (!currentBird) return;
-
-  if (choice === currentBird.name) {
-  setMessage("✅ Correct!");
-  setScore(score + 1);
-  setStreak(streak + 1);
-  setStreakPop(true); // existing
-  setShowReveal(true);
-  setBgColor("#6ee472"); // light green background
-
-  // trigger score pop
-  setScorePop(true);
   
+  useEffect(() => {
+  if (scorePop) {
+    const timer = setTimeout(() => setScorePop(false), 700);
+    return () => clearTimeout(timer);
+  }
+}, [scorePop]);
+
+  const checkAnswer = (selected: Bird) => {
+  if (!question) return;
+
+  if (selected.name === question.bird.name) {
+    setMessage("✅ Correct!");
+    setScore(prev => prev + 1);
+    setStreak(prev => prev + 1);
+    setBgColor("#6ee472");
+
+    setScorePop(true);   // 👈 ADD THIS
   } else {
-    setMessage(`❌ Wrong! It was ${currentBird.name}`);
+    setMessage(`❌ Wrong! It was ${question.bird.name}`);
     setStreak(0);
-    setShowReveal(true); // still reveal image/fact even if wrong
-    setBgColor("#fc5246"); // red background
+    setBgColor("#fc5246");
   }
 
   setAnswered(true);
 };
 
-  if (!currentBird) return null;
+  const playSound = () => {
+    if (!question) return;
+
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+
+    const newAudio = new Audio(question.bird.audio);
+    setAudio(newAudio);
+    newAudio.play();
+  };
+
+  if (!question) return null;
 
   return (
     <div
-  className="App"
-  style={{
-    textAlign: "center",
-    padding: 20,
-    backgroundColor: bgColor,
-    transition: "background-color 0.5s ease",
-  }}
->
-      <h1>:3 :3 Midwest Birds!!!! :3 :3</h1>
-      
-
+      className="App"
+      style={{
+        textAlign: "center",
+        padding: 20,
+        backgroundColor: bgColor,
+        transition: "background-color 0.4s ease"
+      }}
+    >
+      <h1>:3 Midwest Bird Quiz :3</h1>
       <div style={{ position: "relative", display: "inline-block" }}>
   <h2>Score: {score}</h2>
+
   {scorePop && (
     <span
       style={{
         position: "absolute",
         top: -20,
-        right: -10,
-        fontSize: "24px",
-        color: "#ffd700",
+        right: -15,
+        fontSize: 24,
         fontWeight: "bold",
-        animation: "scorePop 0.8s ease-out forwards",
+        color: "#ffd700",
+        animation: "scorePop 0.7s ease-out forwards"
       }}
     >
       +1
     </span>
   )}
 </div>
+      <h3>🔥 Streak: {streak}</h3>
 
-      <h3>🔥 Current Streak: {streak}</h3>
+      <button onClick={playSound}>Play Bird Call</button>
 
-      <button onClick={() => playSound(currentBird.audio)}>Play Bird Call</button>
-
-{/* Audio progress slider */}
-<div style={{ margin: "10px 0" }}>
-  <input
-    type="range"
-    min={0}
-    max={audioDuration}
-    value={audioProgress}
-    readOnly
-    style={{ width: "80%" }}
-  />
-  <div>
-    {Math.floor(audioProgress)} / {Math.floor(audioDuration)} sec
-  </div>
-</div>
-
-{/* Bird image and fun fact reveal */}
-{answered && currentBird && showReveal && (
-  <div className="bird-reveal show">
-    <img src={currentBird.image} alt={currentBird.name} className="bird-image show" />
-    {currentBird.fact && (
-      <div style={{ marginTop: 10, fontStyle: "italic", color: "#242424" }}>
-        📝 Fun Fact: {currentBird.fact}
+      <div style={{ marginTop: 20 }}>
+        {question.choices.map(choice => (
+          <button
+            key={choice.name}
+            onClick={() => checkAnswer(choice)}
+            disabled={answered}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              width: "90%",
+              margin: "10px auto",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #333",
+              fontSize: 16,
+              backgroundColor: answered
+                ? choice.name === question.bird.name
+                  ? "#a4e2a6"
+                  : "#faa6a0"
+                : "#2196f3",
+              color: "white",
+              cursor: answered ? "default" : "pointer"
+            }}
+          >
+            <img
+              src={choice.image}
+              alt={choice.name}
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 8,
+                objectFit: "cover"
+              }}
+            />
+            {choice.name}
+          </button>
+        ))}
       </div>
-    )}
-  </div>
-)}
 
-      <div>
-  {choices.map((choice, index) => {
-    const bird = birds.find((b) => b.name === choice);
-    if (!bird) return null;
+      {answered && (
+        <>
+          <h3>{message}</h3>
 
-    return (
-      <button
-        key={index}
-        onClick={() => checkAnswer(choice)}
-        disabled={answered}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          width: "90%",
-          margin: "10px auto",
-          padding: "10px",
-          fontSize: "16px",
-          borderRadius: "8px",
-          border: "1px solid #333",
-          backgroundColor: answered
-            ? choice === currentBird?.name
-              ? "#a4e2a6" // green for correct
-              : "#faa6a0" // red for wrong
-            : "#2196f3", // blue default
-          color: "white",
-          cursor: answered ? "default" : "pointer",
-        }}
-      >
-        <img
-          src={bird.image}
-          alt={bird.name}
-          style={{ width: "50px", height: "50px", borderRadius: "8px", objectFit: "cover" }}
-        />
-        <span>{bird.name}</span>
-      </button>
-    );
-  })}
-</div>
+          <div style={{ marginTop: 15 }}>
+            <img
+              src={question.bird.image}
+              alt={question.bird.name}
+              style={{ width: 250, borderRadius: 12 }}
+            />
+            <p style={{ fontStyle: "italic" }}>
+              📝 {question.bird.fact}
+            </p>
+          </div>
 
-      <h3>{message}</h3>
-
-      {answered && <button onClick={generateQuestion}>Next Question</button>}
+          <button
+            onClick={generateQuestion}
+            style={{ marginTop: 15 }}
+          >
+            Next Question
+          </button>
+        </>
+      )}
     </div>
   );
 }
