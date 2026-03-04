@@ -178,6 +178,7 @@ function App() {
   const [scorePop, setScorePop] = useState(false);
 
   // first question generation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     generateQuestion();
   }, []);
